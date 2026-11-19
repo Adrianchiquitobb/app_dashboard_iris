@@ -125,4 +125,57 @@ with col2:
 # =====================================================================
 # 7. FILA 3: KPI 6 (Mapa de Calor) y KPI 7 (Gráfica de Bigote)
 # =====================================================================
-col3,
+col3, col4 = st.columns(2)
+
+with col3:
+    st.subheader("KPI 6: ¿Qué partes crecen juntas? (Mapa de Calor)")
+    corr = df_f[['Largo del Sépalo (cm)', 'Ancho del Sépalo (cm)', 'Largo del Pétalo (cm)', 'Ancho del Pétalo (cm)']].corr()
+    fig_heat = px.imshow(
+        corr,
+        text_auto=".2f",
+        color_continuous_scale="RdYlGn",
+        aspect="auto"
+    )
+    fig_heat.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
+    st.plotly_chart(fig_heat, use_container_width=True)
+    st.caption("💡 Cómo leerlo: Los cuadros verde oscuro (cercanos a 1) muestran partes que crecen al mismo tiempo. Los tonos claros o rojizos indican que no dependen entre sí.")
+
+with col4:
+    st.subheader(f"KPI 7: ¿Qué tan parejos son sus tamaños? (Gráfica de Bigote)")
+    fig_box = px.box(
+        df_f,
+        x="Tipo de Flor",
+        y=variable_bigote,
+        color="Tipo de Flor",
+        points="all"
+    )
+    fig_box.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
+    st.plotly_chart(fig_box, use_container_width=True)
+    st.caption("💡 Cómo leerlo: Una caja pequeña significa que casi todas las flores de ese tipo miden lo mismo. Los puntos sueltos fuera de las líneas son flores inusualmente grandes o pequeñas.")
+
+st.divider()
+
+# =====================================================================
+# 8. FILA 4: KPI 8 (Gráfico de Dona) y KPI 9 (Tabla Comparativa)
+# =====================================================================
+col5, col6 = st.columns(2)
+
+with col5:
+    st.subheader("KPI 8: ¿Cuántas flores hay de cada tipo?")
+    conteo = df_f['Tipo de Flor'].value_counts().reset_index()
+    conteo.columns = ['Tipo de Flor', 'Cantidad']
+    fig_dona = px.pie(
+        conteo,
+        values='Cantidad',
+        names='Tipo de Flor',
+        hole=0.5
+    )
+    fig_dona.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
+    st.plotly_chart(fig_dona, use_container_width=True)
+    st.caption("💡 Cómo leerlo: Muestra que el estudio está perfectamente equilibrado, con la misma cantidad de flores analizadas por cada especie.")
+
+with col6:
+    st.subheader("KPI 9: Tabla Comparativa de Tamaños Promedio")
+    resumen = df_f.groupby('Tipo de Flor')[['Largo del Sépalo (cm)', 'Ancho del Sépalo (cm)', 'Largo del Pétalo (cm)', 'Ancho del Pétalo (cm)']].mean().round(2)
+    st.dataframe(resumen, use_container_width=True)
+    st.caption("💡 Cómo leerlo: Resumen exacto en centímetros para comparar de un vistazo qué tipo de flor es más grande (Virginica) y cuál es más pequeña (Setosa).")
