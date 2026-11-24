@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.datasets import load_iris
+from sklearn.linear_model import LogisticRegression
 
 # =====================================================================
 # 1. CONFIGURACIÓN DE PÁGINA (Pantalla Completa)
@@ -17,13 +20,11 @@ st.set_page_config(
 # =====================================================================
 @st.cache_data
 def cargar_datos():
-    # Dataset 1: Medidas reales en centímetros
     iris = load_iris(as_frame=True)
     df_iris = iris.frame
     df_iris.columns = ['Largo del Sépalo (cm)', 'Ancho del Sépalo (cm)', 'Largo del Pétalo (cm)', 'Ancho del Pétalo (cm)', 'target']
     df_iris['Tipo de Flor'] = df_iris['target'].map({0: 'Setosa', 1: 'Versicolor', 2: 'Virginica'})
     
-    # Dataset 2: Presencia en el mundo
     datos_geo = {
         'País': ['Canadá', 'Rusia', 'Japón', 'Estados Unidos', 'Reino Unido', 'Países Bajos', 'Alemania', 'Francia', 'México'],
         'ISO': ['CAN', 'RUS', 'JPN', 'USA', 'GBR', 'NLD', 'DEU', 'FRA', 'MEX'],
@@ -35,7 +36,6 @@ def cargar_datos():
 
 df_iris, df_geo = cargar_datos()
 
-# Paleta de colores consistente para los 3 tipos de flor
 COLORES_FLOR = {'Setosa': '#2E7D32', 'Versicolor': '#FB8C00', 'Virginica': '#8E24AA'}
 
 # =====================================================================
@@ -63,14 +63,14 @@ if df_f.empty:
     st.stop()
 
 # =====================================================================
-# 4. TÍTULO LLAMATIVO Y PREGUNTA DE INVESTIGACIÓN
+# 4. TÍTULO LLAMATIVO Y PREGUNTA DE INVESTIGACIÓN CORTA
 # =====================================================================
 st.markdown(
     """
     <div style='background-color:#2E7D32; padding:25px; border-radius:12px; margin-bottom:25px;'>
         <h1 style='color:white; text-align:center; margin:0; font-size:36px;'>🌸 El Mundo de las Flores Iris: Tamaños, Formas y Presencia Global</h1>
-        <p style='color:#E8F5E9; text-align:center; font-size:19px; margin-top:12px;'>
-            <b>Pregunta de Investigación:</b> ¿Cómo podemos distinguir fácilmente los 3 tipos de flores Iris por su tamaño y en qué países es más común encontrarlas?
+        <p style='color:#E8F5E9; text-align:center; font-size:20px; margin-top:12px;'>
+            <b>Pregunta de Investigación:</b> ¿En qué se diferencian las flores Iris y dónde habitan?
         </p>
     </div>
     """,
@@ -99,27 +99,51 @@ st.caption("💡 Cómo leerlo: Entre más oscuro es el color verde del país, m�
 st.divider()
 
 # =====================================================================
-# 6. FILA 2: KPI 2 (Regresión Lineal) y KPI 3 (Mapa de Calor)
+# 6. FILA 2: KPI 2 (Clasificación Lineal) y KPI 3 (Mapa de Calor)
 # =====================================================================
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("KPI 2: ¿Pétalo más largo = más ancho? (Regresión Lineal)")
-    fig_reg = px.scatter(
-        df_f,
-        x="Largo del Pétalo (cm)",
-        y="Ancho del Pétalo (cm)",
-        color="Tipo de Flor",
-        color_discrete_map=COLORES_FLOR,
-        trendline="ols"
+    st.subheader("KPI 2: ¿Cómo se separan por tamaño? (Clasificación Lineal)")
+    X_clas = df_iris[['Largo del Pétalo (cm)', 'Ancho del Pétalo (cm)']].values
+    y_clas = df_iris['target'].values
+    modelo_zonas = LogisticRegression(max_iter=200).fit(X_clas, y_clas)
+
+    x_min, x_max = X_clas[:, 0].min() - 0.5, X_clas[:, 0].max() + 0.5
+    y_min, y_max = X_clas[:, 1].min() - 0.3, X_clas[:, 1].max() + 0.3
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 150), np.linspace(y_min, y_max, 150))
+    Z = modelo_zonas.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+
+    fig_clas = go.Figure()
+    fig_clas.add_trace(go.Contour(
+        x=np.linspace(x_min, x_max, 150),
+        y=np.linspace(y_min, y_max, 150),
+        z=Z,
+        showscale=False,
+        opacity=0.22,
+        colorscale=[[0, '#2E7D32'], [0.5, '#FB8C00'], [1, '#8E24AA']],
+        line_width=1,
+        hoverinfo='skip'
+    ))
+
+    for especie in df_f['Tipo de Flor'].unique():
+        sub = df_f[df_f['Tipo de Flor'] == especie]
+        fig_clas.add_trace(go.Scatter(
+            x=sub['Largo del Pétalo (cm)'],
+            y=sub['Ancho del Pétalo (cm)'],
+            mode='markers',
+            name=especie,
+            marker=dict(color=COLORES_FLOR[especie], size=8, line=dict(width=1, color='white')),
+            hovertemplate=f"<b>Tipo de Flor:</b> {especie}<br><b>Largo del pétalo:</b> %{{x}} cm<br><b>Ancho del pétalo:</b> %{{y}} cm<extra></extra>"
+        ))
+
+    fig_clas.update_layout(
+        xaxis_title="Largo del Pétalo (cm)",
+        yaxis_title="Ancho del Pétalo (cm)",
+        margin={"r":0, "t":20, "l":0, "b":0}
     )
-    fig_reg.update_traces(
-        selector=dict(mode='markers'),
-        hovertemplate="<b>Largo del pétalo:</b> %{x} cm<br><b>Ancho del pétalo:</b> %{y} cm<extra></extra>"
-    )
-    fig_reg.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
-    st.plotly_chart(fig_reg, use_container_width=True)
-    st.caption("💡 Cómo leerlo: Cada punto es una flor real. Las líneas rectas suben, confirmando que entre más largo es el pétalo, también es más ancho.")
+    st.plotly_chart(fig_clas, use_container_width=True)
+    st.caption("💡 Cómo leerlo: Las zonas de color dividen el territorio de cada especie con líneas rectas. Así se distingue de un vistazo qué tamaño corresponde a cada flor.")
 
 with col2:
     st.subheader("KPI 3: ¿Qué partes crecen juntas? (Mapa de Calor)")
@@ -146,7 +170,8 @@ st.divider()
 col3, col4 = st.columns(2)
 
 with col3:
-    st.subheader(f"KPI 4: ¿Qué tan parejos son sus tamaños? (Gráfica de Bigote)")
+    nombre_limpio = variable_bigote.replace(" (cm)", "")
+    st.subheader(f"KPI 4: ¿Qué tan uniforme es el {nombre_limpio}? (Gráfica de Bigote)")
     fig_box = px.box(
         df_f,
         x="Tipo de Flor",
@@ -155,9 +180,14 @@ with col3:
         color_discrete_map=COLORES_FLOR,
         points="all"
     )
+    # Eliminar los 7 recuadros técnicos y mostrar solo un dato limpio al tocar los puntos
+    fig_box.update_traces(
+        hoveron="points",
+        hovertemplate=f"<b>Tipo de Flor:</b> %{{x}}<br><b>{nombre_limpio}:</b> %{{y}} cm<extra></extra>"
+    )
     fig_box.update_layout(margin={"r":0,"t":20,"l":0,"b":0}, showlegend=False)
     st.plotly_chart(fig_box, use_container_width=True)
-    st.caption("💡 Cómo leerlo: Una caja pequeña significa que casi todas las flores de ese tipo miden lo mismo. Los puntos sueltos fuera de las líneas son flores inusualmente grandes o pequeñas.")
+    st.caption(f"💡 Cómo leerlo: Una caja pequeña significa que casi todas las flores tienen un {nombre_limpio.lower()} muy parecido. Pasa el cursor sobre cualquier punto para ver su medida exacta.")
 
 with col4:
     st.subheader("KPI 5: Comparación de medidas promedio por flor")
@@ -206,9 +236,8 @@ with col5:
 
 with col6:
     st.subheader("KPI 7: Top países con más flores registradas")
-    df_geo_ordenado = df_geo_f.sort_values(by="Flores Registradas", ascending=True)
     fig_top = px.bar(
-        df_geo_ordenado,
+        df_geo_f,
         x="Flores Registradas",
         y="País",
         orientation="h",
@@ -218,6 +247,8 @@ with col6:
     fig_top.update_traces(
         hovertemplate="<b>País:</b> %{y}<br><b>Total registrado:</b> %{x} flores<extra></extra>"
     )
+    # Forzar el orden estricto de mayor a menor en el eje vertical
+    fig_top.update_yaxes(categoryorder='total ascending')
     fig_top.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
     st.plotly_chart(fig_top, use_container_width=True)
     st.caption("💡 Cómo leerlo: Ordena de mayor a menor los países con más registros botánicos, mostrando qué especie domina en cada lugar.")
@@ -230,21 +261,23 @@ st.divider()
 col7, col8 = st.columns(2)
 
 with col7:
-    st.subheader("KPI 8: ¿Cuál es el largo de pétalo más común?")
+    st.subheader("KPI 8: ¿Cuál es el largo de pétalo más común? (Histograma)")
     fig_hist = px.histogram(
         df_f,
         x="Largo del Pétalo (cm)",
         color="Tipo de Flor",
         color_discrete_map=COLORES_FLOR,
-        nbins=20,
-        opacity=0.8
+        barmode="group",
+        nbins=15
     )
     fig_hist.update_traces(
+        marker_line_width=1.5,
+        marker_line_color="white",
         hovertemplate="<b>Rango de tamaño:</b> %{x} cm<br><b>Cantidad de flores:</b> %{y} flores<extra></extra>"
     )
     fig_hist.update_layout(yaxis_title="Cantidad de Flores", margin={"r":0,"t":20,"l":0,"b":0})
     st.plotly_chart(fig_hist, use_container_width=True)
-    st.caption("💡 Cómo leerlo: Las barras más altas indican los tamaños que más se repiten. Nota cómo la Setosa siempre está separada a la izquierda (pétalos cortos).")
+    st.caption("💡 Cómo leerlo: Este histograma agrupa las flores por rangos de tamaño. Las barras más altas indican las medidas que más se repiten sin encimarse entre especies.")
 
 with col8:
     st.subheader("KPI 9: Récords de pétalo (Más pequeño, promedio y más grande)")
