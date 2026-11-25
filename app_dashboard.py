@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 from sklearn.datasets import load_iris
-from sklearn.linear_model import LogisticRegression
 
 # =====================================================================
 # 1. CONFIGURACIÓN DE PÁGINA (Pantalla Completa)
@@ -99,51 +96,31 @@ st.caption("💡 Cómo leerlo: Entre más oscuro es el color verde del país, m�
 st.divider()
 
 # =====================================================================
-# 6. FILA 2: KPI 2 (Clasificación Lineal) y KPI 3 (Mapa de Calor)
+# 6. FILA 2: KPI 2 (Regresión Lineal) y KPI 3 (Mapa de Calor)
 # =====================================================================
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("KPI 2: ¿Cómo se separan por tamaño? (Clasificación Lineal)")
-    X_clas = df_iris[['Largo del Pétalo (cm)', 'Ancho del Pétalo (cm)']].values
-    y_clas = df_iris['target'].values
-    modelo_zonas = LogisticRegression(max_iter=200).fit(X_clas, y_clas)
-
-    x_min, x_max = X_clas[:, 0].min() - 0.5, X_clas[:, 0].max() + 0.5
-    y_min, y_max = X_clas[:, 1].min() - 0.3, X_clas[:, 1].max() + 0.3
-    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 150), np.linspace(y_min, y_max, 150))
-    Z = modelo_zonas.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
-
-    fig_clas = go.Figure()
-    fig_clas.add_trace(go.Contour(
-        x=np.linspace(x_min, x_max, 150),
-        y=np.linspace(y_min, y_max, 150),
-        z=Z,
-        showscale=False,
-        opacity=0.22,
-        colorscale=[[0, '#2E7D32'], [0.5, '#FB8C00'], [1, '#8E24AA']],
-        line_width=1,
-        hoverinfo='skip'
-    ))
-
-    for especie in df_f['Tipo de Flor'].unique():
-        sub = df_f[df_f['Tipo de Flor'] == especie]
-        fig_clas.add_trace(go.Scatter(
-            x=sub['Largo del Pétalo (cm)'],
-            y=sub['Ancho del Pétalo (cm)'],
-            mode='markers',
-            name=especie,
-            marker=dict(color=COLORES_FLOR[especie], size=8, line=dict(width=1, color='white')),
-            hovertemplate=f"<b>Tipo de Flor:</b> {especie}<br><b>Largo del pétalo:</b> %{{x}} cm<br><b>Ancho del pétalo:</b> %{{y}} cm<extra></extra>"
-        ))
-
-    fig_clas.update_layout(
-        xaxis_title="Largo del Pétalo (cm)",
-        yaxis_title="Ancho del Pétalo (cm)",
-        margin={"r":0, "t":20, "l":0, "b":0}
+    st.subheader("KPI 2: ¿Pétalo más largo = más ancho? (Regresión Lineal)")
+    fig_reg = px.scatter(
+        df_f,
+        x="Largo del Pétalo (cm)",
+        y="Ancho del Pétalo (cm)",
+        color="Tipo de Flor",
+        color_discrete_map=COLORES_FLOR,
+        trendline="ols"
     )
-    st.plotly_chart(fig_clas, use_container_width=True)
-    st.caption("💡 Cómo leerlo: Las zonas de color dividen el territorio de cada especie con líneas rectas. Así se distingue de un vistazo qué tamaño corresponde a cada flor.")
+    fig_reg.update_traces(
+        selector=dict(mode='markers'),
+        hovertemplate="<b>Largo del pétalo:</b> %{x} cm<br><b>Ancho del pétalo:</b> %{y} cm<extra></extra>"
+    )
+    fig_reg.update_traces(
+        selector=dict(mode='lines'),
+        hovertemplate="<b>Tendencia del pétalo:</b> %{y:.2f} cm de ancho a los %{x:.2f} cm de largo<extra></extra>"
+    )
+    fig_reg.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
+    st.plotly_chart(fig_reg, use_container_width=True)
+    st.caption("💡 Cómo leerlo: Cada punto es una flor real. Las líneas rectas suben, confirmando que entre más largo es el pétalo, también es más ancho.")
 
 with col2:
     st.subheader("KPI 3: ¿Qué partes crecen juntas? (Mapa de Calor)")
@@ -180,7 +157,6 @@ with col3:
         color_discrete_map=COLORES_FLOR,
         points="all"
     )
-    # Eliminar los 7 recuadros técnicos y mostrar solo un dato limpio al tocar los puntos
     fig_box.update_traces(
         hoveron="points",
         hovertemplate=f"<b>Tipo de Flor:</b> %{{x}}<br><b>{nombre_limpio}:</b> %{{y}} cm<extra></extra>"
@@ -247,7 +223,6 @@ with col6:
     fig_top.update_traces(
         hovertemplate="<b>País:</b> %{y}<br><b>Total registrado:</b> %{x} flores<extra></extra>"
     )
-    # Forzar el orden estricto de mayor a menor en el eje vertical
     fig_top.update_yaxes(categoryorder='total ascending')
     fig_top.update_layout(margin={"r":0,"t":20,"l":0,"b":0})
     st.plotly_chart(fig_top, use_container_width=True)
